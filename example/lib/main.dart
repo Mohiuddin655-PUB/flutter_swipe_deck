@@ -75,6 +75,7 @@ class _DeckPageState extends State<DeckPage> {
                   SwipeDirection.right,
                   SwipeDirection.up,
                 ],
+                backCardOffset: Offset(0, 24),
                 itemBuilder: (context, profile, index) => _Card(profile),
                 overlayBuilder: (context, direction, progress) {
                   return _Badge(direction: direction, progress: progress);
@@ -136,37 +137,41 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: profile.color,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Text(
-            profile.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              fontWeight: FontWeight.w700,
+    return AspectRatio(
+      aspectRatio: 1 / 1.5,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: profile.color,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 18,
+              offset: Offset(0, 8),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            profile.tagline,
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-        ],
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              profile.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 30,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              profile.tagline,
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+          ],
+        ),
       ),
     );
   }
