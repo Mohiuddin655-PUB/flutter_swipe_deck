@@ -3,9 +3,9 @@ description: >-
   A customizable Tinder-style swipeable card deck for Flutter, with built-in
   pagination, controller-driven swipes, undo, drag overlays and four-way
   directions.
-version: 1.2.0
-repository: https://github.com/mohiuddin655/flutter_swipe_deck
-issue_tracker: https://github.com/mohiuddin655/flutter_swipe_deck/issues
+version: 1.2.1
+repository: https://github.com/Mohiuddin655-PUB/flutter_swipe_deck.git
+issue_tracker: https://github.com/Mohiuddin655-PUB/flutter_swipe_deck/issues
 
 topics:
   - cards
