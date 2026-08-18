@@ -5,7 +5,7 @@
 
 A customizable Tinder-style swipeable card deck for Flutter — drag a card away,
 throw it with a button, take it back with undo, and paint your own badges while
-it moves.
+it moves. Feed it a fixed list, or let it page through a feed of any size.
 
 No third-party dependencies. Works with any item type.
 
@@ -19,6 +19,8 @@ No third-party dependencies. Works with any item type.
 - **Drag overlays** — build LIKE / NOPE badges that follow the swipe progress.
 - **Tunable stack** — how many cards show behind, how far back they sit, how
   much the top card tilts, how far it must travel, how fast it animates.
+- **Pagination** — `PagedSwipeDeck` prefetches the next page while the user is
+  still swiping the current one.
 - **Loop mode**, **empty state**, **haptics** and a **read-only mode** for
   button-only decks.
 
@@ -26,7 +28,7 @@ No third-party dependencies. Works with any item type.
 
 ```yaml
 dependencies:
-  flutter_swipe_deck: ^1.0.0
+  flutter_swipe_deck: ^1.1.0
 ```
 
 ```dart
@@ -98,6 +100,78 @@ SwipeDeck<Profile>(
 )
 ```
 
+## Unlimited content with pagination
+
+`PagedSwipeDeck` keeps the deck topped up while the user swipes. Give it a
+fetcher and it does the rest.
+
+```dart
+PagedSwipeDeck<Profile>(
+  pageSize: 20,
+  prefetchThreshold: 5,        // load the next page with 5 cards left
+  fetcher: (page, cursor) async {
+    final result = await api.profiles(page: page, limit: 20);
+    return SwipeDeckPage(result.items, hasMore: result.hasNext);
+  },
+  itemBuilder: (context, profile, index) => ProfileCard(profile),
+  onSwipe: (index, profile, direction) => report(profile, direction),
+  loadingBuilder: (context) => const Center(child: CircularProgressIndicator()),
+  errorBuilder: (context, error, retry) => ErrorCard(error, onRetry: retry),
+  emptyBuilder: (context) => const Text('That is everyone'),
+)
+```
+
+How it behaves:
+
+- **Prefetch** — a page is requested as soon as `prefetchThreshold` cards are
+  left, so swiping rarely waits on the network.
+- **One request at a time** — overlapping prefetches are dropped, no duplicate
+  pages.
+- **Stops when dry** — an empty page, a page with `hasMore: false`, or
+  `SwipeDeckPage.last(...)` ends the deck and fires `onEnd` once.
+- **Errors pause the loop** — the failed page is not retried automatically;
+  `errorBuilder` hands you a `retry` callback.
+
+### Cursor APIs
+
+Return a `nextCursor` and it comes back on the following request:
+
+```dart
+fetcher: (page, cursor) async {
+  final result = await api.feed(after: cursor as String?);
+  return SwipeDeckPage(result.items, nextCursor: result.endCursor);
+},
+```
+
+### Keeping memory flat
+
+For a feed that never ends, cap the buffer. Cards behind the cursor are
+dropped, while `keepBehind` of them stay so undo keeps working.
+
+```dart
+PagedSwipeDeck<Profile>(
+  maxBufferedItems: 60,  // never hold more than 60 items
+  keepBehind: 10,        // ...but keep 10 swiped ones for undo
+  ...
+)
+```
+
+### Refreshing
+
+Hold the paginator yourself when you need to reload the feed — pull to
+refresh, a filter change, a new search:
+
+```dart
+final paginator = SwipeDeckPaginator<Profile>(
+  pageSize: 20,
+  fetcher: (page, cursor) => api.page(page),
+);
+
+PagedSwipeDeck<Profile>(paginator: paginator, itemBuilder: ...);
+
+await paginator.refresh(); // clears the buffer and loads page one again
+```
+
 ## Parameters
 
 | Parameter | Default | What it does |
@@ -125,10 +199,25 @@ SwipeDeck<Profile>(
 | `hapticFeedback` | `true` | Tick when a card leaves the deck. |
 | `initialIndex` | `0` | Card to start on. |
 
+`PagedSwipeDeck` takes the same knobs, plus:
+
+| Parameter | Default | What it does |
+| --- | --- | --- |
+| `fetcher` | — | Loads a page. Required unless `paginator` is given. |
+| `paginator` | `null` | A `SwipeDeckPaginator` you own, for `refresh()`. |
+| `pageSize` | `20` | Items per page, passed to the fetcher. |
+| `firstPage` | `0` | Number of the first page. |
+| `prefetchThreshold` | `5` | Cards left when the next page is requested. |
+| `maxBufferedItems` | `null` | Cap on buffered items; `null` keeps everything. |
+| `keepBehind` | `10` | Swiped cards kept for undo when trimming. |
+| `loadingBuilder` | spinner | Shown while waiting with no cards left. |
+| `errorBuilder` | retry button | Shown when a page request failed. |
+
 ## Example
 
-A full demo — three action buttons, undo, super-like on swipe up and animated
-badges — lives in [`example/lib/main.dart`](example/lib/main.dart).
+A full demo — three action buttons, undo, super-like on swipe up, animated
+badges and a paginated feed — lives in
+[`example/lib/main.dart`](example/lib/main.dart).
 
 ```sh
 cd example

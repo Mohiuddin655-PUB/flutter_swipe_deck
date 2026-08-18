@@ -190,11 +190,13 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
       _animationController.duration = widget.duration;
     }
     if (oldWidget.items.length != widget.items.length) {
-      // The deck was refilled or trimmed underneath us.
-      _history.clear();
-      if (_index > widget.items.length) _index = widget.items.length;
-      _ended = false;
-      _drag = Offset.zero;
+      if (widget.items.length < oldWidget.items.length) {
+        // The list shrank: keep the cursor and the undo history in range.
+        if (_index > widget.items.length) _index = widget.items.length;
+        _history.removeWhere((record) => record.index >= widget.items.length);
+      }
+      // More cards arrived, so the deck can reach its end again later.
+      if (_index < widget.items.length) _ended = false;
     }
   }
 
@@ -237,6 +239,25 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
         widget.onUndo?.call(record.index, item, record.direction);
       }
       widget.onIndexChanged?.call(_index);
+    });
+  }
+
+  @override
+  void handleLeadingTrimmed(int count) {
+    if (count <= 0) return;
+    setState(() {
+      _index = math.max(0, _index - count);
+      for (var i = _history.length - 1; i >= 0; i--) {
+        final record = _history[i];
+        if (record.index < count) {
+          _history.removeAt(i);
+        } else {
+          _history[i] = _SwipeRecord(
+            index: record.index - count,
+            direction: record.direction,
+          );
+        }
+      }
     });
   }
 

@@ -16,6 +16,10 @@ abstract interface class SwipeDeckDelegate {
 
   /// Jumps to [index] without animating.
   void moveTo(int index);
+
+  /// Shifts the cursor after [count] items were dropped from the front of the
+  /// list.
+  void handleLeadingTrimmed(int count);
 }
 
 /// Drives a [SwipeDeck] from outside — buttons, keyboard shortcuts, tests.
@@ -64,6 +68,12 @@ class SwipeDeckController {
 
   /// Jumps straight to [index].
   void moveTo(int index) => _delegate?.moveTo(index);
+
+  /// Tells the deck that [count] items were removed from the front of its
+  /// list, so it can shift its cursor and undo history along.
+  ///
+  /// `PagedSwipeDeck` calls this for you when it trims its buffer.
+  void trimLeading(int count) => _delegate?.handleLeadingTrimmed(count);
 
   /// Called by [SwipeDeck]. You never need this.
   void attach(SwipeDeckDelegate delegate) => _delegate = delegate;

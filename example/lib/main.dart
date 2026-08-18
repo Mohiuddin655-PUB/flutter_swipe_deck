@@ -59,6 +59,13 @@ class _DeckPageState extends State<DeckPage> {
             onPressed: () => setState(controller.undo),
             icon: const Icon(Icons.undo_rounded),
           ),
+          IconButton(
+            tooltip: 'Paginated feed',
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => const PagedPage())),
+            icon: const Icon(Icons.all_inclusive_rounded),
+          ),
         ],
       ),
       body: Column(
@@ -236,6 +243,96 @@ class _RoundButton extends StatelessWidget {
       iconSize: 32,
       padding: const EdgeInsets.all(16),
       icon: Icon(icon, color: color),
+    );
+  }
+}
+
+/// An endless feed loaded page by page.
+class PagedPage extends StatelessWidget {
+  const PagedPage({super.key});
+
+  /// Stands in for a paginated API call.
+  static Future<SwipeDeckPage<Profile>> _fetch(int page, Object? cursor) async {
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    return SwipeDeckPage(
+      List.generate(10, (index) {
+        final number = page * 10 + index + 1;
+        final base = _profiles[number % _profiles.length];
+        return Profile('${base.name} #$number', base.tagline, base.color);
+      }),
+      // Six pages, then the feed runs dry.
+      hasMore: page < 5,
+      nextCursor: 'page-$page',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = SwipeDeckController();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Paginated feed')),
+      body: Column(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: PagedSwipeDeck<Profile>(
+                controller: controller,
+                fetcher: _fetch,
+                pageSize: 10,
+                prefetchThreshold: 4,
+                // Never hold more than 40 cards, but keep 8 for undo.
+                maxBufferedItems: 40,
+                keepBehind: 8,
+                itemBuilder: (context, profile, index) => _Card(profile),
+                overlayBuilder: (context, direction, progress) =>
+                    _Badge(direction: direction, progress: progress),
+                loadingBuilder: (context) =>
+                    const Center(child: CircularProgressIndicator()),
+                errorBuilder: (context, error, retry) => Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('$error'),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: retry,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+                emptyBuilder: (context) => const Center(
+                  child: Text('You reached the end of the feed.'),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _RoundButton(
+                  icon: Icons.close_rounded,
+                  color: Colors.redAccent,
+                  onPressed: controller.swipeLeft,
+                ),
+                _RoundButton(
+                  icon: Icons.undo_rounded,
+                  color: Colors.blueGrey,
+                  onPressed: controller.undo,
+                ),
+                _RoundButton(
+                  icon: Icons.favorite_rounded,
+                  color: Colors.green,
+                  onPressed: controller.swipeRight,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
