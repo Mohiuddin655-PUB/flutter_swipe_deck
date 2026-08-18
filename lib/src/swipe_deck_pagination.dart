@@ -51,7 +51,12 @@ class SwipeDeckPaginator<T> extends ChangeNotifier {
     required this.fetcher,
     this.pageSize = 20,
     this.firstPage = 0,
-  }) : assert(pageSize > 0, 'pageSize must be greater than 0');
+    this.maxPage,
+  })  : assert(pageSize > 0, 'pageSize must be greater than 0'),
+        assert(
+          maxPage == null || maxPage >= firstPage,
+          'maxPage cannot be before firstPage',
+        );
 
   /// Loads a page.
   final SwipeDeckPageFetcher<T> fetcher;
@@ -61,6 +66,13 @@ class SwipeDeckPaginator<T> extends ChangeNotifier {
 
   /// Number of the first page — `0` or `1`, whatever your API uses.
   final int firstPage;
+
+  /// Highest page number that will ever be requested.
+  ///
+  /// Optional: leave it `null` for a feed that only ends when the source says
+  /// so. Set it to cap a feed — `firstPage: 1, maxPage: 5` requests pages one
+  /// through five and then stops.
+  final int? maxPage;
 
   final List<T> _items = [];
 
@@ -138,6 +150,8 @@ class SwipeDeckPaginator<T> extends ChangeNotifier {
       _page++;
       // An empty or short page means the source ran dry, whatever it claims.
       _hasMore = page.hasMore && page.items.isNotEmpty;
+      final limit = maxPage;
+      if (limit != null && _page > limit) _hasMore = false;
     } catch (error) {
       if (requestId != _requestId) return;
       _error = error;

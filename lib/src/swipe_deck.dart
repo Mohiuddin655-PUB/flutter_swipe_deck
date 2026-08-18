@@ -69,6 +69,8 @@ class SwipeDeck<T> extends StatefulWidget {
     this.maxRotation = 12,
     this.duration = const Duration(milliseconds: 220),
     this.curve = Curves.easeOut,
+    this.programmaticDuration,
+    this.programmaticCurve = Curves.easeInOutCubic,
     this.swipeEnabled = true,
     this.loop = false,
     this.hapticFeedback = true,
@@ -135,6 +137,17 @@ class SwipeDeck<T> extends StatefulWidget {
   /// Curve of the fly-out and snap-back animations.
   final Curve curve;
 
+  /// How long a swipe that starts from rest takes — a [SwipeDeckController]
+  /// call rather than a drag. Defaults to [duration] × 1.4.
+  final Duration? programmaticDuration;
+
+  /// Curve of a swipe that starts from rest.
+  ///
+  /// [curve] continues the momentum of a released drag, which reads as a jump
+  /// when the card was standing still, so button swipes ease out of the deck
+  /// instead.
+  final Curve programmaticCurve;
+
   /// Whether dragging is allowed. Controller swipes still work when `false`.
   final bool swipeEnabled;
 
@@ -161,7 +174,10 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
   final List<_SwipeRecord> _history = [];
 
   Animation<Offset>? _animation;
-  Offset _drag = Offset.zero;
+
+  /// Drag offset of the top card. Kept out of [setState] so a frame only
+  /// rebuilds the transforms, never the cards themselves.
+  final ValueNotifier<Offset> _drag = ValueNotifier(Offset.zero);
   Size _deckSize = Size.zero;
   bool _settling = false;
   bool _ended = false;
@@ -205,6 +221,7 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
     widget.controller?.detach(this);
     _animation?.removeListener(_followAnimation);
     _animationController.dispose();
+    _drag.dispose();
     super.dispose();
   }
 
@@ -231,15 +248,20 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
     setState(() {
       _index = record.index;
       _ended = false;
-      // Start where the card left and slide it back home.
-      _drag = _offscreenOffset(record.direction);
     });
-    _animateTo(Offset.zero, () {
-      if (item != null) {
-        widget.onUndo?.call(record.index, item, record.direction);
-      }
-      widget.onIndexChanged?.call(_index);
-    });
+    // Start where the card left and slide it back home.
+    _drag.value = _offscreenOffset(record.direction);
+    _animateTo(
+      Offset.zero,
+      () {
+        if (item != null) {
+          widget.onUndo?.call(record.index, item, record.direction);
+        }
+        widget.onIndexChanged?.call(_index);
+      },
+      curve: widget.programmaticCurve,
+      duration: _programmaticDuration,
+    );
   }
 
   @override
@@ -266,10 +288,10 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
     if (index < 0 || index > widget.items.length) return;
     setState(() {
       _index = index;
-      _drag = Offset.zero;
       _ended = false;
       _history.clear();
     });
+    _drag.value = Offset.zero;
     widget.onIndexChanged?.call(_index);
   }
 
@@ -278,10 +300,15 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
   bool get _isEmpty =>
       widget.items.isEmpty || (!widget.loop && _index >= widget.items.length);
 
+  Duration get _programmaticDuration =>
+      widget.programmaticDuration ?? widget.duration * 1.4;
+
   Offset _offscreenOffset(SwipeDirection direction) {
     final size =
         _deckSize == Size.zero ? MediaQuery.sizeOf(context) : _deckSize;
-    final travel = math.max(size.width, size.height) * 1.6;
+    // Just far enough to clear the deck, so the card never has to race.
+    final travel =
+        direction.isHorizontal ? size.width * 1.35 : size.height * 1.25;
     return direction.unit * travel;
   }
 
@@ -312,36 +339,45 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
   }
 
   /// Direction the card is leaning towards right now, for the overlay.
-  SwipeDirection? get _activeDirection {
-    if (_drag == Offset.zero) return null;
+  SwipeDirection? _activeDirection(Offset drag) {
+    if (drag == Offset.zero) return null;
     final allowed = widget.allowedDirections;
-    final horizontal = _drag.dx.abs() >= _drag.dy.abs();
+    final horizontal = drag.dx.abs() >= drag.dy.abs();
     final candidate = horizontal
-        ? (_drag.dx > 0 ? SwipeDirection.right : SwipeDirection.left)
-        : (_drag.dy > 0 ? SwipeDirection.down : SwipeDirection.up);
+        ? (drag.dx > 0 ? SwipeDirection.right : SwipeDirection.left)
+        : (drag.dy > 0 ? SwipeDirection.down : SwipeDirection.up);
     if (allowed.contains(candidate)) return candidate;
     final fallback = horizontal
-        ? (_drag.dy > 0 ? SwipeDirection.down : SwipeDirection.up)
-        : (_drag.dx > 0 ? SwipeDirection.right : SwipeDirection.left);
+        ? (drag.dy > 0 ? SwipeDirection.down : SwipeDirection.up)
+        : (drag.dx > 0 ? SwipeDirection.right : SwipeDirection.left);
     return allowed.contains(fallback) ? fallback : null;
   }
 
-  double _progressFor(SwipeDirection direction) {
-    final travelled = direction.isHorizontal ? _drag.dx.abs() : _drag.dy.abs();
+  double _progressFor(Offset drag, SwipeDirection direction) {
+    final travelled = direction.isHorizontal ? drag.dx.abs() : drag.dy.abs();
     return (travelled / widget.threshold).clamp(0.0, 1.0);
   }
 
-  void _animateTo(Offset target, VoidCallback onDone) {
+  void _animateTo(
+    Offset target,
+    VoidCallback onDone, {
+    Curve? curve,
+    Duration? duration,
+  }) {
     _settling = true;
-    final animation = Tween<Offset>(begin: _drag, end: target).animate(
-      CurvedAnimation(parent: _animationController, curve: widget.curve),
+    _animationController.duration = duration ?? widget.duration;
+    final animation = Tween<Offset>(begin: _drag.value, end: target).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: curve ?? widget.curve,
+      ),
     );
     _animation?.removeListener(_followAnimation);
     _animation = animation..addListener(_followAnimation);
     _animationController.forward(from: 0).whenComplete(() {
       if (!mounted) return;
       _settling = false;
-      setState(() => _drag = Offset.zero);
+      _drag.value = Offset.zero;
       onDone();
     });
   }
@@ -349,7 +385,7 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
   void _followAnimation() {
     final animation = _animation;
     if (animation == null || !mounted) return;
-    setState(() => _drag = animation.value);
+    _drag.value = animation.value;
   }
 
   void _fling(SwipeDirection direction) {
@@ -358,11 +394,18 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
     if (index < 0 || index >= widget.items.length) return;
     final item = widget.items[index];
     if (widget.hapticFeedback) HapticFeedback.mediumImpact();
-    _animateTo(_offscreenOffset(direction), () {
-      _history.add(_SwipeRecord(index: index, direction: direction));
-      widget.onSwipe?.call(index, item, direction);
-      _advance();
-    });
+    // A card thrown by a button starts from rest, so it needs its own curve.
+    final fromRest = _drag.value == Offset.zero;
+    _animateTo(
+      _offscreenOffset(direction),
+      () {
+        _history.add(_SwipeRecord(index: index, direction: direction));
+        widget.onSwipe?.call(index, item, direction);
+        _advance();
+      },
+      curve: fromRest ? widget.programmaticCurve : widget.curve,
+      duration: fromRest ? _programmaticDuration : widget.duration,
+    );
   }
 
   void _advance() {
@@ -382,13 +425,13 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
 
   void _onPanUpdate(DragUpdateDetails details) {
     if (_settling) return;
-    setState(() => _drag += details.delta);
+    _drag.value += details.delta;
   }
 
   void _onPanEnd(DragEndDetails details) {
     if (_settling) return;
     final velocity = details.velocity.pixelsPerSecond;
-    final direction = _resolveDirection(_drag, velocity);
+    final direction = _resolveDirection(_drag.value, velocity);
     if (direction != null) {
       _fling(direction);
       return;
@@ -430,57 +473,68 @@ class _SwipeDeckState<T> extends State<SwipeDeck<T>>
 
   Widget _buildCard({required int index, required int depth}) {
     final isTop = depth == 0;
-    final settle = math.min(1.0, _drag.distance / (widget.threshold * 1.4));
-    final scale = 1 -
-        depth * widget.backCardScale +
-        (isTop ? 0.0 : settle * widget.backCardScale);
-    final offset = widget.backCardOffset * depth.toDouble() -
-        (isTop ? Offset.zero : widget.backCardOffset * settle);
-
-    Widget card = widget.itemBuilder(context, widget.items[index], index);
-
-    if (isTop) {
-      final direction = _activeDirection;
-      final overlay = direction == null
-          ? null
-          : widget.overlayBuilder?.call(
-              context,
-              direction,
-              _progressFor(direction),
-            );
-      if (overlay != null) {
-        card = Stack(
-          fit: StackFit.passthrough,
-          children: [card, Positioned.fill(child: overlay)],
-        );
-      }
-    }
-
-    card = Transform.translate(
-      offset: offset,
-      child: Transform.scale(scale: scale, child: card),
+    // Built once and handed to the builder as `child`: dragging a card must
+    // not rebuild it sixty times a second.
+    final card = RepaintBoundary(
+      child: widget.itemBuilder(context, widget.items[index], index),
     );
 
-    if (!isTop) return IgnorePointer(child: card);
+    return ValueListenableBuilder<Offset>(
+      valueListenable: _drag,
+      child: card,
+      builder: (context, drag, child) {
+        final settle = math.min(1.0, drag.distance / (widget.threshold * 1.4));
+        final scale = 1 -
+            depth * widget.backCardScale +
+            (isTop ? 0.0 : settle * widget.backCardScale);
+        final offset = widget.backCardOffset * depth.toDouble() -
+            (isTop ? Offset.zero : widget.backCardOffset * settle);
 
-    final width = _deckSize.width == 0 ? 1.0 : _deckSize.width;
-    final angle = (_drag.dx / (width / 2) * widget.maxRotation)
-            .clamp(-widget.maxRotation, widget.maxRotation) *
-        math.pi /
-        180;
+        var content = child!;
+        if (isTop) {
+          final direction = _activeDirection(drag);
+          final overlay = direction == null
+              ? null
+              : widget.overlayBuilder?.call(
+                  context,
+                  direction,
+                  _progressFor(drag, direction),
+                );
+          if (overlay != null) {
+            content = Stack(
+              fit: StackFit.passthrough,
+              children: [content, Positioned.fill(child: overlay)],
+            );
+          }
+        }
 
-    return Transform.translate(
-      offset: _drag,
-      child: Transform.rotate(
-        angle: angle,
-        child: widget.swipeEnabled
-            ? GestureDetector(
-                onPanUpdate: _onPanUpdate,
-                onPanEnd: _onPanEnd,
-                child: card,
-              )
-            : card,
-      ),
+        content = Transform.translate(
+          offset: offset,
+          child: Transform.scale(scale: scale, child: content),
+        );
+
+        if (!isTop) return IgnorePointer(child: content);
+
+        final width = _deckSize.width == 0 ? 1.0 : _deckSize.width;
+        final angle = (drag.dx / (width / 2) * widget.maxRotation)
+                .clamp(-widget.maxRotation, widget.maxRotation) *
+            math.pi /
+            180;
+
+        return Transform.translate(
+          offset: drag,
+          child: Transform.rotate(
+            angle: angle,
+            child: widget.swipeEnabled
+                ? GestureDetector(
+                    onPanUpdate: _onPanUpdate,
+                    onPanEnd: _onPanEnd,
+                    child: content,
+                  )
+                : content,
+          ),
+        );
+      },
     );
   }
 }

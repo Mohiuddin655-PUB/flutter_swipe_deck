@@ -48,6 +48,7 @@ class PagedSwipeDeck<T> extends StatefulWidget {
     this.paginator,
     this.pageSize = 20,
     this.firstPage = 0,
+    this.maxPage,
     this.prefetchThreshold = 5,
     this.maxBufferedItems,
     this.keepBehind = 10,
@@ -69,6 +70,8 @@ class PagedSwipeDeck<T> extends StatefulWidget {
     this.maxRotation = 12,
     this.duration = const Duration(milliseconds: 220),
     this.curve = Curves.easeOut,
+    this.programmaticDuration,
+    this.programmaticCurve = Curves.easeInOutCubic,
     this.swipeEnabled = true,
     this.hapticFeedback = true,
   })  : assert(
@@ -97,6 +100,10 @@ class PagedSwipeDeck<T> extends StatefulWidget {
 
   /// Number of the first page. Ignored when [paginator] is given.
   final int firstPage;
+
+  /// Optional cap on how far the deck pages. `null` means the feed runs until
+  /// the source says it is done. Ignored when [paginator] is given.
+  final int? maxPage;
 
   /// Request the next page once this many cards are left unswiped.
   final int prefetchThreshold;
@@ -163,6 +170,12 @@ class PagedSwipeDeck<T> extends StatefulWidget {
   /// Curve of the fly-out and snap-back animations.
   final Curve curve;
 
+  /// How long a swipe that starts from rest takes. Defaults to [duration] x 1.4.
+  final Duration? programmaticDuration;
+
+  /// Curve of a swipe that starts from rest, such as a controller call.
+  final Curve programmaticCurve;
+
   /// Whether dragging is allowed.
   final bool swipeEnabled;
 
@@ -219,6 +232,7 @@ class _PagedSwipeDeckState<T> extends State<PagedSwipeDeck<T>> {
           fetcher: widget.fetcher!,
           pageSize: widget.pageSize,
           firstPage: widget.firstPage,
+          maxPage: widget.maxPage,
         );
     _paginator.addListener(_onPaginatorChanged);
   }
@@ -318,6 +332,8 @@ class _PagedSwipeDeckState<T> extends State<PagedSwipeDeck<T>> {
       maxRotation: widget.maxRotation,
       duration: widget.duration,
       curve: widget.curve,
+      programmaticDuration: widget.programmaticDuration,
+      programmaticCurve: widget.programmaticCurve,
       swipeEnabled: widget.swipeEnabled,
       hapticFeedback: widget.hapticFeedback,
     );

@@ -294,6 +294,61 @@ void main() {
     expect(swiped, ['A']);
   });
 
+  testWidgets('dragging does not rebuild the cards', (tester) async {
+    var builds = 0;
+
+    await tester.pumpWidget(
+      _host(
+        SwipeDeck<String>(
+          items: _items,
+          itemBuilder: (context, item, index) {
+            builds++;
+            return _card(context, item, index);
+          },
+        ),
+      ),
+    );
+
+    final initialBuilds = builds;
+    final gesture = await tester.startGesture(tester.getCenter(find.text('A')));
+    for (var i = 0; i < 10; i++) {
+      await gesture.moveBy(const Offset(8, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    // The transforms follow the finger; the cards themselves do not rebuild.
+    expect(builds, initialBuilds);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a swipe from rest uses programmaticDuration', (tester) async {
+    final controller = SwipeDeckController();
+    final swiped = <String>[];
+
+    await tester.pumpWidget(
+      _host(
+        SwipeDeck<String>(
+          items: _items,
+          itemBuilder: _card,
+          controller: controller,
+          duration: const Duration(milliseconds: 100),
+          programmaticDuration: const Duration(milliseconds: 600),
+          onSwipe: (index, item, direction) => swiped.add(item),
+        ),
+      ),
+    );
+
+    controller.swipeRight();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(swiped, isEmpty, reason: 'still flying out');
+
+    await tester.pumpAndSettle();
+    expect(swiped, ['A']);
+  });
+
   testWidgets('an empty list falls back to emptyBuilder', (tester) async {
     await tester.pumpWidget(
       _host(

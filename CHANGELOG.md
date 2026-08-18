@@ -1,3 +1,14 @@
+## 1.2.0
+
+* Smoother button swipes: a card thrown from rest now flies out with its own
+  curve and duration (`programmaticCurve`, `programmaticDuration`) instead of
+  the drag-release curve, which read as a jump.
+* Cards are no longer rebuilt while dragging — only the transforms and the
+  overlay follow the finger, and each card sits behind a `RepaintBoundary`.
+* Cards fly just far enough to clear the deck instead of a fixed long throw.
+* `maxPage` — an optional cap on how far `PagedSwipeDeck` and
+  `SwipeDeckPaginator` will page.
+
 ## 1.1.0
 
 * `PagedSwipeDeck<T>` — swipe through a feed of any size, page by page.

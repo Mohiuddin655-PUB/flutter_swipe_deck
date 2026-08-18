@@ -28,7 +28,7 @@ No third-party dependencies. Works with any item type.
 
 ```yaml
 dependencies:
-  flutter_swipe_deck: ^1.1.0
+  flutter_swipe_deck: ^1.2.0
 ```
 
 ```dart
@@ -143,6 +143,19 @@ fetcher: (page, cursor) async {
 },
 ```
 
+### Stopping after N pages
+
+`hasMore` is usually the backend's job, but you can cap the feed from the
+widget instead — handy for a "top 100" style deck:
+
+```dart
+PagedSwipeDeck<Profile>(
+  firstPage: 1,
+  maxPage: 5,   // requests pages 1..5 and then ends. Optional; null = no cap.
+  ...
+)
+```
+
 ### Keeping memory flat
 
 For a feed that never ends, cap the buffer. Cards behind the cursor are
@@ -192,8 +205,10 @@ await paginator.refresh(); // clears the buffer and loads page one again
 | `threshold` | `110` | Pixels a card must travel to count as swiped. |
 | `velocityThreshold` | `700` | A faster flick completes the swipe anyway. |
 | `maxRotation` | `12` | Maximum tilt of the dragged card, in degrees. |
-| `duration` | `220ms` | Fly-out and snap-back duration. |
-| `curve` | `Curves.easeOut` | Fly-out and snap-back curve. |
+| `duration` | `220ms` | Fly-out and snap-back duration for a released drag. |
+| `curve` | `Curves.easeOut` | Fly-out and snap-back curve for a released drag. |
+| `programmaticDuration` | `duration` x 1.4 | Duration of a swipe that starts from rest. |
+| `programmaticCurve` | `Curves.easeInOutCubic` | Curve of a swipe that starts from rest. |
 | `swipeEnabled` | `true` | Whether dragging is allowed. |
 | `loop` | `false` | Start over instead of running out. |
 | `hapticFeedback` | `true` | Tick when a card leaves the deck. |
@@ -207,6 +222,7 @@ await paginator.refresh(); // clears the buffer and loads page one again
 | `paginator` | `null` | A `SwipeDeckPaginator` you own, for `refresh()`. |
 | `pageSize` | `20` | Items per page, passed to the fetcher. |
 | `firstPage` | `0` | Number of the first page. |
+| `maxPage` | `null` | Optional cap on how far the deck pages. |
 | `prefetchThreshold` | `5` | Cards left when the next page is requested. |
 | `maxBufferedItems` | `null` | Cap on buffered items; `null` keeps everything. |
 | `keepBehind` | `10` | Swiped cards kept for undo when trimming. |
@@ -223,6 +239,12 @@ badges and a paginated feed — lives in
 cd example
 flutter run
 ```
+
+## Performance
+
+Dragging a card rebuilds only its transforms and the overlay — `itemBuilder`
+is not called again, and every card sits behind a `RepaintBoundary`. Heavy
+cards full of images stay smooth.
 
 ## License
 

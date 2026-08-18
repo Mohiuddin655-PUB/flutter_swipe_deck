@@ -154,6 +154,40 @@ void main() {
     expect(find.text('done'), findsOneWidget);
   });
 
+  testWidgets('maxPage caps how far the deck pages', (tester) async {
+    final controller = SwipeDeckController();
+    final requested = <int>[];
+    var ends = 0;
+
+    await tester.pumpWidget(
+      _host(
+        PagedSwipeDeck<String>(
+          controller: controller,
+          pageSize: 5,
+          prefetchThreshold: 2,
+          maxPage: 1, // pages 0 and 1 only
+          fetcher: (page, cursor) {
+            requested.add(page);
+            return _endless(page, cursor);
+          },
+          itemBuilder: _card,
+          onEnd: () => ends++,
+          emptyBuilder: (context) => const Text('capped'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (var i = 0; i < 10; i++) {
+      controller.swipeRight();
+      await tester.pumpAndSettle();
+    }
+
+    expect(requested, [0, 1]);
+    expect(ends, 1);
+    expect(find.text('capped'), findsOneWidget);
+  });
+
   testWidgets('a failed page surfaces a retry', (tester) async {
     var attempts = 0;
 
