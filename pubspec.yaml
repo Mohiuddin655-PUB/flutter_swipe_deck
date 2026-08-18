@@ -1,0 +1,29 @@
+name: flutter_swipe_deck
+description: >-
+  A customizable Tinder-style swipeable card deck for Flutter, with
+  controller-driven swipes, undo, drag overlays and four-way directions.
+version: 1.0.0
+repository: https://github.com/mohiuddin655/flutter_swipe_deck
+issue_tracker: https://github.com/mohiuddin655/flutter_swipe_deck/issues
+
+topics:
+  - cards
+  - swipe
+  - tinder
+  - animation
+  - ui
+
+environment:
+  sdk: ^3.4.0
+  flutter: ">=3.16.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
