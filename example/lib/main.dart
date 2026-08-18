@@ -280,6 +280,7 @@ class PagedPage extends StatelessWidget {
                 controller: controller,
                 fetcher: _fetch,
                 pageSize: 10,
+                backCardOffset: Offset(0, 18),
                 prefetchThreshold: 4,
                 // Never hold more than 40 cards, but keep 8 for undo.
                 maxBufferedItems: 40,
